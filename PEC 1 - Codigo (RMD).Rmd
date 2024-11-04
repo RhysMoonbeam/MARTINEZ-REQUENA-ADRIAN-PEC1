@@ -1,0 +1,187 @@
+---
+title: "PEC 1"
+author: "MARTINEZ REQUENA ADRIAN"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: '3'
+  html_document:
+    toc: true
+    toc_depth: '3'
+colorlinks: true
+---
+
+```{r echo=FALSE, warning=FALSE}
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=60),tidy=TRUE)
+```
+
+# Abstract
+
+Este trabajo se centra en la exploración y análisis de datos de metabolitos en muestras de individuos con y sin cachexia. Para ello se utiliza la herramienta SummarizedExperiment, con la que se organizan los datos en una estructura propia del paquete Bioconductor para que el alumno se familiarice con ello. Por último, los resultados se exponen y comparten a traves de un repositorio de GitHub. 
+
+
+# Objetivos del estudio
+
+Mediante este trabajo se realiza un ejercicio de repaso y ampliación para trabajar con Bioconductor y la exploración de datos. Se utilizará para ello datos de muestras de individuos con cachexia y sin ella. 
+
+# Materiales y Métodos
+
+Se ha utilizado un dataframe obtenido de specmine.datasets que reune un conjunto de datos de cachexia, el cual contiene datos de metabolitos medidos en diversas muestras.
+
+Por otro lado, las herramientas principales utilizadas incluyen SummarizedExperiment y specmine.datasets de R, así como el paquete de Bioconductor.
+
+
+# Resultados
+
+## Selección del dataset
+
+Para ello hemos creado un nuevo proyecto clonando el repositorio de GitHub que se ha entregado junto a la práctica. Se muestran a continuación los archivos que contiene:
+
+```{r echo=FALSE}
+library(usethis)
+list.files("C:/Users/navia/Desktop/metaboData")
+```
+
+Ahora mostramos las opciones de datasets a escoger
+
+```{r echo=FALSE}
+list.files("C:/Users/navia/Desktop/metaboData/Datasets")
+```
+
+Vamos a seleccionar el dataset de 2024-Cachexia. El archivo Data_Catalog.xlsx nos indica que este dataset puede encontrarse en el paquete de R "specmine.datasets". Para acceder a él se ha tenido que realizar este paso indicado en [RDocumentation](https://www.rdocumentation.org/packages/specmine.datasets/versions/0.0.2)
+
+```{r eval=FALSE, include=TRUE}
+install.packages("devtools")
+devtools::install_github("BioSystemsUM/specmine.datasets")
+```
+
+Y por lo tanto, una vez instalados estos paquetes podemos acceder al conjunto de datos de cachexia de esta forma: 
+
+```{r}
+library(specmine.datasets)
+data("cachexia")
+```
+
+Observemos la estructura de los datos y los metadatos
+
+```{r echo=FALSE}
+str(cachexia$data)
+```
+
+Podemos apreciar que 'cachexia' es una matriz con 63 filas y 77 columnas de valores numéricos. Las filas corresponden los metabolitos que se han medido y las columnas a las diferentes muestras.
+
+```{r echo=FALSE}
+str(cachexia$metadata)
+```
+
+La estructura de los metadatos nos indica que hay 77 observaciones y una sola variable llamada Muscle.loss que es un factor con dos niveles: "cachexic" y "control".
+
+## SummarizedExperiment del dataset
+
+Siguiendo las indicaciones expuestas en la guía de [Bioconductor](https://bioconductor.org/packages/release/bioc/vignettes/SummarizedExperiment/inst/doc/SummarizedExperiment.html#constructing-a-summarizedexperiment) podemos crear nuestro propio SummarizedExperiment.  
+
+```{r message=FALSE, warning=FALSE}
+library(SummarizedExperiment)
+library(specmine.datasets)
+
+# Creamos el contenedor SummarizedExperiment
+se_cachexia <- SummarizedExperiment(
+  assays = list(counts = as.matrix(cachexia$data)),
+  rowData = DataFrame(Compound = rownames(cachexia$data)), 
+  colData = cachexia$metadata 
+) 
+```
+
+Para ello colocamos nuestros datos en forma de matriz, por motivo de compatibilidad, utilizando as.matrix. Esto será el 'assay' de nuestro SummarizedExperiment. Después daremos nombre a las filas de la matriz (que son los metabolitos) y las columnas les daremos la información de metadata sobre la perdida de músculo y peso. 
+
+Tras realizar este proceso, podemos ver el resultado:
+
+```{r echo=FALSE}
+se_cachexia
+```
+
+## Exploración del dataset
+
+Ahora proseguimos explorando los datos que tenemos. 
+```{r echo=FALSE}
+summary(se_cachexia)
+dims <- dim(se_cachexia)
+cat("Dimensiones (filas, columnas):", dims, "\n")
+```
+
+Vemos que los datos tienen una longitud de 63 filas, con 77 columnas, y tan solo una columna de metadata que nos indica si catalogamos la muestra como 'normal' o 'cachexia'. 
+
+```{r echo=FALSE}
+cat("Nombres de las filas (primeras 5):", head(rownames(se_cachexia), 5), "\n")
+cat("Nombres de las columnas (primeras 5):", head(colnames(se_cachexia), 5), "\n")
+```
+De esta manera comprobamos que las filas incluyen los diferentes metabolitos y las columnas los ID de las muestras. Debido a la cantidad extensa de datos, se ha decidido tan solo mostrar las 5 primeras. 
+
+Veamos por ejemplo ahora el primer y último metabolito, junto a los resultados obtenidos en cada muestra. 
+
+```{r echo=FALSE}
+# Ver los primeros y últimos compuestos
+cat("Primer metabolito\n")
+print(head(assay(se_cachexia), 1))
+
+cat("Último metabolito\n")
+print(tail(assay(se_cachexia), 1))
+```
+
+Ahora podemos explorar los metadatos que nos indican si la muestra pertenece al grupo control o ha desarrollado cachexia:
+
+```{r echo=FALSE}
+cat("Metadatos:\n")
+print(colData(se_cachexia))
+table(colData(se_cachexia)$Muscle.loss)
+
+```
+
+Vemos que hay 30 muestras normales y 47 con cachexia. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+missing_values <- sum(is.na(assay(se_cachexia)))
+cat("Valores faltantes en el dataset:", missing_values, "\n")
+
+```
+Además, no hay ningún missing value en nuestra tabla
+
+Por último, vamos a ver los valores del primer metabolito en un Boxplot comparativo entre 'control' y 'cachexia'
+
+```{r echo=FALSE}
+library(ggplot2)
+library(SummarizedExperiment)
+
+# Extraemos los datos y los metadatos del objeto SummarizedExperiment para poder generar el gráfico sin que nos de error
+data_frame <- as.data.frame(t(assay(se_cachexia)))
+data_frame$Muscle.loss <- colData(se_cachexia)$Muscle.loss
+
+# Creamos el boxplot
+ggplot(data_frame, aes(x = Muscle.loss, y = data_frame[,1], fill = Muscle.loss)) +
+  geom_boxplot() + labs(x = "Grupo", y = "1.6 Anhydro-beta-D-glucose (Primer Metabolito)", title = "Distribución del Primer Metabolito por Condición") + theme_minimal() + scale_fill_brewer(palette = "Set3") + theme(plot.title = element_text(hjust = 0.5), axis.text = element_text(size = 12), axis.title = element_text(size = 12), legend.position = "none")
+
+# Exportamos el data.frame creado para añadirlo más tarde al directorio de github
+write.table(data_frame, file = "cachexia_data.txt", sep = "\t", row.names = TRUE, col.names = NA)
+```
+Se puede apreciar que los niveles de 1.6 Anhydro-beta-D-glucose son mayores en las muestras con cachexia. 
+
+# Discusión y limitaciones y conclusiones del estudio
+
+Algunas de las limitaciones a las que puede enfrentarse el estudio y datos recogidos serían:
+
+-La muestra, con únicamente 77 personas, podría no ser lo bastante representativa.
+
+- Podrían hacer falta más metabolitos que no se estuvieran teniendo en cuento.
+
+- No se tienen en cuenta otros factores que puedan influir en los niveles de metabolitos, como la dieta o la actividad física de los participantes.
+
+En conclusión, este trabajo se ha enfocado en investigar y examinar datos de metabolitos en muestras de personas con y sin cachexia, empleando herramientas del paquete Bioconductor. La aplicación de SummarizedExperiment facilitó la organización y estructuración de los datos, y se pudieron aplicar algunas de las ideas impartidas en la asignatura durante las primeras actividades. 
+
+# Enlace a repositorio
+
+El repositorio puede encontrarse en este enlace: https://github.com/RhysMoonbeam/MARTINEZ-REQUENA-ADRIAN-PEC1.git
+
+
+
